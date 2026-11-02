@@ -230,9 +230,20 @@ table.j tr.row:hover td{background:var(--accent-soft)}
   <div class="tbl"><table class="j"><thead><tr><th>Datum</th><th>Bias</th><th>Offen</th><th>Zuerst</th><th>Art</th><th>Gedreht</th></tr></thead><tbody id="list"></tbody></table></div>
   <p class="prose" style="font-size:.9rem;color:var(--muted)">Tippe auf eine Zeile, um sie zu bearbeiten. Screenshots behältst du in einem Ordner, hier stehen die Fakten.</p>
 </section>
+<section class="card" id="sync">
+  <div class="sec-head"><span class="n">4</span><h2>Sync über GitHub</h2></div>
+  <p class="prose">Mit einem GitHub-Token speichert das Journal deine Einträge zusätzlich in einem <strong>privaten Gist</strong> in deinem GitHub-Konto. Dann siehst du auf Mac und Handy dieselben Daten. Den Token gibst du auf jedem Gerät einmal ein.</p>
+  <details class="prose"><summary><strong>So erstellst du den Token (einmalig, 2 Minuten)</strong></summary>
+    <ol class="steps"><li>Auf github.com rechts oben auf dein Profilbild → <strong>Settings</strong>.</li><li>Ganz unten links <strong>Developer settings</strong> → <strong>Personal access tokens</strong> → <strong>Tokens (classic)</strong>.</li><li><strong>Generate new token (classic)</strong>. Name: „Trading-Journal“. Ablauf: z. B. 1 Jahr.</li><li>Bei den Rechten <strong>nur „gist“</strong> ankreuzen, sonst nichts.</li><li>Erstellen, den Token (beginnt mit <span class="mono">ghp_</span>) kopieren und unten einfügen.</li></ol>
+    <p>Der Token darf nur Gists lesen und schreiben, nicht an deine Repositories. Er bleibt in diesem Browser gespeichert und wird nur an GitHub geschickt. Gib ihn niemandem weiter.</p></details>
+  <div class="row"><label for="g-token" style="flex:1 1 260px">GitHub-Token<input id="g-token" type="password" autocomplete="off" placeholder="ghp_…" style="font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:9px 10px;width:100%"></label></div>
+  <div class="row"><button class="btn" type="button" id="g-save">Token speichern &amp; synchronisieren</button><button class="btn ghost" type="button" id="g-now" hidden>Jetzt synchronisieren</button><button class="btn ghost" type="button" id="g-off" hidden>Token entfernen</button></div>
+  <p class="status" id="g-status" aria-live="polite">Sync ist aus. Einträge liegen nur in diesem Browser.</p>
+</section>
+
 <section class="card">
-  <div class="sec-head"><span class="n">4</span><h2>Sichern &amp; übertragen</h2></div>
-  <p class="prose">Deine Einträge liegen nur in <strong>diesem Browser auf diesem Gerät</strong>. Sichere sie regelmäßig als Datei. Mit derselben Datei überträgst du sie auf ein anderes Gerät (z. B. vom Mac aufs Handy).</p>
+  <div class="sec-head"><span class="n">5</span><h2>Sichern &amp; übertragen</h2></div>
+  <p class="prose">Ohne Sync liegen deine Einträge nur in <strong>diesem Browser</strong>. Sichere sie dann regelmäßig als Datei. Mit derselben Datei überträgst du sie auch ohne Sync auf ein anderes Gerät.</p>
   <div class="row"><button class="btn" type="button" id="b-exp">Als Datei sichern</button><label class="btn ghost" for="b-imp" style="display:inline-flex;align-items:center">Datei laden<input id="b-imp" type="file" accept="application/json,.json" hidden></label><span class="status" id="b-status" aria-live="polite"></span></div>
   <p class="status" id="b-last"></p>
 </section>
@@ -258,15 +269,16 @@ table.j tr.row:hover td{background:var(--accent-soft)}
   function collect(){const levels={};L.forEach(([k])=>{let raw=$('v-'+k).value.trim();if(raw.includes(','))raw=raw.replace(/\./g,'').replace(',','.');const v=raw===''?null:Number(raw);levels[k]={v:isFinite(v)?v:null,open:$('o-'+k).checked}});
     return {date:$('f-date').value,sym:$('f-sym').value,bias:$('f-bias').value,levels,first:first.value,time:$('f-time').value,kind:$('f-kind').value,rev:$('f-rev').value,note:$('f-note').value.trim(),updated:new Date().toISOString()}}
   function render(){
+    const V=rows.filter(r=>!r.deleted);
     const tb=$('list');tb.innerHTML='';
-    if(!rows.length){tb.innerHTML='<tr><td colspan="6" class="empty">Noch keine Einträge. Fang heute vor 15:30 mit dem ersten an.</td></tr>'}
-    rows.forEach(r=>{const tr=document.createElement('tr');tr.className='row';tr.tabIndex=0;
+    if(!V.length){tb.innerHTML='<tr><td colspan="6" class="empty">Noch keine Einträge. Fang heute vor 15:30 mit dem ersten an.</td></tr>'}
+    V.forEach(r=>{const tr=document.createElement('tr');tr.className='row';tr.tabIndex=0;
       const open=L.filter(([k])=>((r.levels||{})[k]||{}).open!==false).length;
       const kind=r.kind?'<span class="tag '+r.kind+'">'+(r.kind==='sweep'?'Sweep':'Durchbruch')+'</span>':'';
       const rev=r.rev?'<span class="tag '+r.rev+'">'+({yes:'Ja',part:'Kurz',no:'Nein'}[r.rev])+'</span>':'';
       tr.innerHTML='<td class="t">'+fmtDate(r.date)+'</td><td>'+({bull:'Bullisch',bear:'Bärisch'}[r.bias]||'–')+'</td><td class="t">'+open+' / 6</td><td>'+(r.first==='none'?'Keins':(NAME[r.first]||'–'))+'</td><td>'+kind+'</td><td>'+rev+'</td>';
       tr.addEventListener('click',()=>fill(r));tr.addEventListener('keydown',e=>{if(e.key==='Enter')fill(r)});tb.appendChild(tr)});
-    const done=rows.filter(r=>r.first);const n=rows.length;$('s-n').textContent=n;
+    const done=V.filter(r=>r.first);const n=V.length;$('s-n').textContent=n;
     const pc=(a,b)=>b?Math.round(a/b*100)+' %':'–';
     const hit=done.filter(r=>r.first!=='none');$('s-hit').textContent=pc(hit.length,done.length);
     const cnt={};hit.forEach(r=>cnt[r.first]=(cnt[r.first]||0)+1);const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0];$('s-top').textContent=top?NAME[top[0]]:'–';
@@ -277,18 +289,47 @@ table.j tr.row:hover td{background:var(--accent-soft)}
   $('f-new').addEventListener('click',clear);
   $('f-del').addEventListener('click',()=>{$('f-confirm').hidden=false});
   $('f-no').addEventListener('click',()=>{$('f-confirm').hidden=true});
-  $('f-yes').addEventListener('click',()=>{if(!editing)return;rows=rows.filter(r=>r.id!==editing);save();clear();render();$('f-status').textContent='Gelöscht.'});
+  $('f-yes').addEventListener('click',()=>{if(!editing)return;tomb(editing);save();clear();render();$('f-status').textContent='Gelöscht.';queueSync()});
   $('f').addEventListener('submit',e=>{e.preventDefault();const st=$('f-status');st.className='status';
     const data=collect();if(!data.date){st.textContent='Bitte ein Datum wählen.';return}
     const id=data.date+'_'+(data.sym==='US 500'?'US500':'US100');
-    if(editing&&editing!==id)rows=rows.filter(r=>r.id!==editing);
+    if(editing&&editing!==id)tomb(editing);
     rows=rows.filter(r=>r.id!==id);rows.push(Object.assign({id},data));
     if(!save()){st.className='status err';st.textContent='Speichern im Browser ist hier nicht möglich. Sichere den Eintrag als Datei.';}else st.textContent='Gespeichert.';
-    editing=id;$('f-title').textContent='Eintrag '+fmtDate(data.date);$('f-new').hidden=false;$('f-del').hidden=false;render()});
-  clear();load();render();
+    editing=id;$('f-title').textContent='Eintrag '+fmtDate(data.date);$('f-new').hidden=false;$('f-del').hidden=false;render();queueSync()});
+  function tomb(id){const r=rows.find(x=>x.id===id);rows=rows.filter(x=>x.id!==id);rows.push({id,date:r?r.date:'',deleted:true,updated:new Date().toISOString()})}
+  function merge(inc){const map=Object.fromEntries(rows.map(r=>[r.id,r]));let n=0;(inc||[]).forEach(r=>{if(r&&r.id){const cur=map[r.id];if(!cur||(r.updated||'')>(cur.updated||'')){map[r.id]=r;if(!r.deleted)n++}}});rows=Object.values(map);sortRows();return n}
+  // ---- GitHub Gist sync
+  const TOK='tradingJournal.token',GID='tradingJournal.gistId',FILE='trading-journal.json';
+  const ls_=k=>{try{return localStorage.getItem(k)}catch(e){return null}},lset=(k,v)=>{try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}};
+  let syncing=false,again=false,syncTimer=null;
+  const gst=(t,err)=>{const el=$('g-status');el.className='status'+(err?' err':'');el.textContent=t};
+  async function gh(path,opt={}){const r=await fetch('https://api.github.com'+path,Object.assign({},opt,{headers:Object.assign({Authorization:'Bearer '+ls_(TOK),Accept:'application/vnd.github+json','Content-Type':'application/json'},opt.headers||{})}));if(!r.ok){const e=new Error('http');e.status=r.status;throw e}return r.status===204?null:r.json()}
+  const payload=()=>JSON.stringify({app:'trading-journal',version:1,saved:new Date().toISOString(),rows},null,1);
+  async function gist(){let id=ls_(GID);if(id)return id;
+    for(let page=1;page<=5;page++){const list=await gh('/gists?per_page=100&page='+page);const g=list.find(x=>x.files&&x.files[FILE]);if(g){lset(GID,g.id);return g.id}if(list.length<100)break}
+    const g=await gh('/gists',{method:'POST',body:JSON.stringify({description:'Trading-Journal (privat)',public:false,files:{[FILE]:{content:payload()}}})});lset(GID,g.id);return g.id}
+  async function sync(){if(!ls_(TOK))return;if(syncing){again=true;return}syncing=true;gst('Synchronisiere …');
+    try{const id=await gist();const g=await gh('/gists/'+id);const f=g.files&&g.files[FILE];let remote=[];
+      if(f){let txt=f.content;if(f.truncated){txt=await (await fetch(f.raw_url)).text()}try{const d=JSON.parse(txt||'{}');remote=Array.isArray(d)?d:(d.rows||[])}catch(e){}}
+      merge(remote);save();render();
+      await gh('/gists/'+id,{method:'PATCH',body:JSON.stringify({files:{[FILE]:{content:payload()}}})});
+      gst('Synchronisiert um '+new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})+'. '+rows.filter(r=>!r.deleted).length+' Einträge in deinem privaten Gist.')}
+    catch(e){if(e.status===401)gst('Der Token ist ungültig oder abgelaufen. Erstelle einen neuen und füge ihn oben ein.',true);
+      else if(e.status===404){lset(GID,null);gst('Der Gist wurde nicht gefunden. Beim nächsten Sync lege ich einen neuen an.',true)}
+      else if(e.status===403)gst('GitHub lehnt den Zugriff ab. Hat der Token das Recht „gist“?',true);
+      else gst('Sync gerade nicht möglich (keine Verbindung?). Deine Einträge sind im Browser gespeichert.',true)}
+    finally{syncing=false;if(again){again=false;sync()}}}
+  function queueSync(){if(!ls_(TOK))return;clearTimeout(syncTimer);syncTimer=setTimeout(sync,800)}
+  function syncUi(){const on=!!ls_(TOK);$('g-now').hidden=!on;$('g-off').hidden=!on;$('g-token').value='';$('g-token').placeholder=on?'Token ist gespeichert':'ghp_…';if(!on)gst('Sync ist aus. Einträge liegen nur in diesem Browser.')}
+  $('g-save').addEventListener('click',()=>{const t=$('g-token').value.trim();if(!t){if(ls_(TOK))sync();else gst('Bitte zuerst den Token einfügen.',true);return}lset(TOK,t);lset(GID,null);syncUi();sync()});
+  $('g-now').addEventListener('click',sync);
+  $('g-off').addEventListener('click',()=>{lset(TOK,null);lset(GID,null);syncUi()});
+  window.addEventListener('focus',()=>{if(ls_(TOK))queueSync()});
+  clear();load();render();syncUi();sync();
   // backup
   $('b-exp').addEventListener('click',()=>{const blob=new Blob([JSON.stringify({app:'trading-journal',version:1,exported:new Date().toISOString(),rows},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='trading-journal-'+today()+'.json';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);try{localStorage.setItem(BK,new Date().toISOString())}catch(e){}showLast();$('b-status').textContent='Datei erstellt.'});
-  $('b-imp').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const d=JSON.parse(rd.result);const inc=Array.isArray(d)?d:d.rows;if(!Array.isArray(inc))throw 0;const map=Object.fromEntries(rows.map(r=>[r.id,r]));let n=0;inc.forEach(r=>{if(r&&r.id&&r.date){if(!map[r.id]||(r.updated||'')>(map[r.id].updated||'')){map[r.id]=r;n++}}});rows=Object.values(map);save();render();$('b-status').className='status';$('b-status').textContent=n+' Einträge übernommen.'}catch(err){$('b-status').className='status err';$('b-status').textContent='Die Datei ist keine Journal-Sicherung.'}e.target.value=''};rd.readAsText(f)});
+  $('b-imp').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const d=JSON.parse(rd.result);const inc=Array.isArray(d)?d:d.rows;if(!Array.isArray(inc))throw 0;const n=merge(inc);save();render();queueSync();$('b-status').className='status';$('b-status').textContent=n+' Einträge übernommen.'}catch(err){$('b-status').className='status err';$('b-status').textContent='Die Datei ist keine Journal-Sicherung.'}e.target.value=''};rd.readAsText(f)});
   function showLast(){let t=null;try{t=localStorage.getItem(BK)}catch(e){}$('b-last').textContent=t?'Letzte Sicherung: '+new Date(t).toLocaleString('de-DE'):'Noch keine Sicherung erstellt.'}
   showLast();
 })();
